@@ -6,21 +6,17 @@
 
 int main(int argc,char **argv)
 {
-	int n = 0, myid, numProcs, i,j,tamanio_matriz,nn;
+	int n = 0, myid, numProcs, nn;
+	int* matriz_m;
+	int* vector_v;
+	//Every subprocess uses this to do its calculations
+	int* sub_matriz_m;
 	
 	MPI_Init(&argc,&argv);
-/*  Se inicia el trabajo con MPI */
            
     MPI_Comm_size(MPI_COMM_WORLD,&numProcs);
-/*  MPI almacena en numprocs el número total de procesos que se pusieron a correr */
  
     MPI_Comm_rank(MPI_COMM_WORLD,&myid);
-/*  MPI almacena en myid la identificación del proceso actual */
-
-    //MPI_Get_processor_name(processor_name,&namelen);
-
-	//fprintf(stdout,"Proceso %d de %d en %s\n", myid, numprocs, processor_name);
-/*  Cada proceso despliega su identificación y el nombre de la computadora en la que corre*/
 
 	if (myid == 0)
 	{
@@ -29,12 +25,29 @@ int main(int argc,char **argv)
 		n = askForN(numProcs);
 		
 		nn = n*n;
-		int* matriz_m = (int *)malloc(nn * sizeof(int));
-		int* vector_v = malloc(sizeof(int)*n);
-	
-		// int* matriz_m = malloc(sizeof(int)*nn);
-		// int vector_v = malloc(sizeof(int)*n);
+
+		matriz_m = (int *)malloc(nn * sizeof(int));
+		vector_v = (int *)malloc(sizeof(int)*n);
+		
+		int numberOfIntsToAssignToSubMatrixM = ((n/numProcs)+2)*n;
+		//This assigns the max amount of memory to the sub matrix of every process.
+		
+		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
+
 		fillMatrixAndVector(matriz_m,vector_v,n);
+		
+		//ScatterV here...
+	}
+	else
+	{
+		//other processes receive the information
+	}
+	
+	//Magic calculations...
+	
+	if(myid == 0)
+	{
+		//Information gathering probably gatherv...
 		
 		printMatrix(matriz_m,n);
 		printf("\n");
@@ -59,7 +72,7 @@ int askForN(int numProcs)
 	{
 		printf("Por favor digite el tamanio de la matriz cuadrada ");
 		scanf("%d",&n);
-		if(numProcs % n == 0)
+		if(n % numProcs == 0)
 		{
 			tamanio_correcto = 1;
 		}
