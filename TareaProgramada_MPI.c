@@ -2,6 +2,7 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 int main(int argc,char **argv)
 {
@@ -23,8 +24,8 @@ int main(int argc,char **argv)
 
 	if (myid == 0)
 	{
-		//fprintf(stdout,"numprocs %d \n",numprocs);
-		
+		//The seed to generate the random numbers
+		srand((unsigned)time(NULL));
 		n = askForN(numProcs);
 		
 		nn = n*n;
@@ -35,10 +36,20 @@ int main(int argc,char **argv)
 		// int vector_v = malloc(sizeof(int)*n);
 		fillMatrixAndVector(matriz_m,vector_v,n);
 		
-		printArray(matriz_m,n); 
+		printMatrix(matriz_m,n);
+		printf("\n");
+		printArray(vector_v,n);
 	}
 	
 	MPI_Finalize();
+}
+
+int randomNumber(int modNum)
+{
+	int returnVal = 0;
+	
+	returnVal = rand() % modNum;
+	return returnVal;
 }
 
 int askForN(int numProcs)
@@ -66,15 +77,15 @@ void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 	int i=0,j=0;
 	 for(i = 0; i < n; i++)
 	 {
-		 vector_v[i] = i; //random 0-5
+		 vector_v[i] = randomNumber(5);//i; //random 0-5
 		 for(j = 0; j < n ; j++)
 		{
-			 matriz_m[i*n+j] = j;//random 0-9;
+			 matriz_m[i*n+j] = randomNumber(10);//j;//random 0-9;
 		 }
 	 }
 }
 
-void printArray(int* array_n,int n)
+void printMatrix(int* array_n,int n)
 {
 	int i=0,j=0;
 	fprintf(stdout,"Matriz %d x %d \n",n,n);
@@ -86,5 +97,18 @@ void printArray(int* array_n,int n)
 		}
 		printf("\n");
 	}
+}
+
+void printArray(int* array_n,int n)
+{
+	int j=0;
+	fprintf(stdout,"Vector %d \n",n,n);
+
+	for(j = 0; j < n ; j++)
+	{
+		fprintf(stdout,"%d ",array_n[j]);
+	}
+	printf("\n");
+
 }
 
