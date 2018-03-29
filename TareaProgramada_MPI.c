@@ -10,7 +10,8 @@ int main(int argc,char **argv)
 	int* matriz_m;
 	int* vector_v;
 	//Every subprocess uses this to do its calculations
-	int* sub_matriz_m;
+	int* sendcounts;
+	int* displs;
 	
 	MPI_Init(&argc,&argv);
            
@@ -29,14 +30,34 @@ int main(int argc,char **argv)
 		matriz_m = (int *)malloc(nn * sizeof(int));
 		vector_v = (int *)malloc(sizeof(int)*n);
 		
-		int numberOfIntsToAssignToSubMatrixM = ((n/numProcs)+2)*n;
+		int numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
 		//This assigns the max amount of memory to the sub matrix of every process.
 		
-		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
+		//sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
 
+		sendcounts = (int *)malloc(sizeof(int)*numProcs);
+		displs = (int *)malloc(sizeof(int)*numProcs);
+		
+		int i = 0;
+		
+		for(i = 0; i < numProcs;i++)
+		{
+			sendcounts[i] = numberOfIntsToAssignToSendCounts;
+			
+		}
+		
+		// displs[0] = 0;
+		// displs[numProcs-1] = numProcs*(n/2+1);
+		
 		fillMatrixAndVector(matriz_m,vector_v,n);
 		
+		fillDispls(displs,n,numProcs);
+		
 		//ScatterV here...
+		 //MPI_Scatterv(x, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
+
+		 //MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
+		 
 	}
 	else
 	{
@@ -49,13 +70,44 @@ int main(int argc,char **argv)
 	{
 		//Information gathering probably gatherv...
 		
-		printMatrix(matriz_m,n);
-		printf("\n");
-		printArray(vector_v,n);
+		// printMatrix(matriz_m,n);
+		// printf("\n");
+		// printArray(vector_v,n);
+		printArray(displs,numProcs);
 	}
 	
 	MPI_Finalize();
 }
+
+int scatterVLast(int n, int numProcs)
+{
+	return ((n*n)-(((n/numProcs)+1)*n));
+}
+
+int scatterVFirstMiddle(int n, int numProcs)
+{
+
+	return n*((n/numProcs)-1);
+}
+
+int scatterVNextMiddle(int n, int numProcs)
+{
+	return ((n*n)/numProcs);
+}
+
+int fillDispls(int * displs, int n, int numProcs)
+{
+	
+	int i;
+	displs[1] = scatterVFirstMiddle(n,numProcs);
+	for(i = 2; i < numProcs-1;i++)
+	{
+		displs[i] = displs[i-1] + scatterVNextMiddle(n,numProcs);
+	}
+	displs[0] = 0;
+	displs[numProcs-1] = scatterVLast(n,numProcs);
+}
+
 
 int randomNumber(int modNum)
 {
@@ -115,7 +167,7 @@ void printMatrix(int* array_n,int n)
 void printArray(int* array_n,int n)
 {
 	int j=0;
-	fprintf(stdout,"Vector %d \n",n,n);
+	fprintf(stdout,"Vector %d \n",n);
 
 	for(j = 0; j < n ; j++)
 	{
