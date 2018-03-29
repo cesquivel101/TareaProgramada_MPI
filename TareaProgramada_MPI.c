@@ -16,6 +16,7 @@ int main(int argc,char **argv)
 	MPI_Status  status;        /* return status para receptor  */
 	int         tag = 0;       /* etiqueta para mensajes */
 	int numberOfIntsToAssignToSendCounts;
+	int rows_sub_matriz_m;
 	
 	
 	MPI_Init(&argc,&argv);
@@ -37,7 +38,9 @@ int main(int argc,char **argv)
 		
 		numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
 		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
+		MPI_Bcast(&n, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
+		rows_sub_matriz_m = (n/numProcs)+1;
 		//This assigns the max amount of memory to the sub matrix of every process.
 		
 		//sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
@@ -68,15 +71,39 @@ int main(int argc,char **argv)
 	}
 	else
 	{
+		//Este primer broadcast nos lo podriamos volar...
 		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
+		MPI_Bcast(&n, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
+		rows_sub_matriz_m = (n/numProcs)+2;
 		//fprintf(stdout,"HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
+	}
+	if(myid == numProcs-1)
+	{
+		rows_sub_matriz_m = (n/numProcs)+1;
 	}
 	//fprintf(stdout,"ANTES: HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
 			//ScatterV here...
-	MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
-	//Magic calculations...
 	
+	MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD); 
+	if(myid == 0)
+	{
+		fprintf(stdout,"HOla yo soy %d\n",myid);
+		printNonSquareMatrix(sub_matriz_m,rows_sub_matriz_m,15);
+	}
+	MPI_Barrier(MPI_COMM_WORLD); 
+	//Magic calculations...
+	if(myid == 1){
+		fprintf(stdout,"HOla yo soy %d\n",myid);
+		printNonSquareMatrix(sub_matriz_m,rows_sub_matriz_m,15);
+	}
+	MPI_Barrier(MPI_COMM_WORLD); 
+	if(myid == 2){
+		fprintf(stdout,"HOla yo soy %d\n",myid);
+		printNonSquareMatrix(sub_matriz_m,rows_sub_matriz_m,15);
+	}
+	MPI_Barrier(MPI_COMM_WORLD); 
 	if(myid == 0)
 	{
 		//Information gathering probably gatherv...
@@ -84,14 +111,14 @@ int main(int argc,char **argv)
 		// printMatrix(matriz_m,n);
 		// printf("\n");
 		// printArray(vector_v,n);
-		printf("Displs: ");
-		printArray(displs,numProcs);
-		printf("sendcounts: ");
-		printArray(sendcounts,numProcs);
-		printf("vector_v: ");
-		printArray(vector_v,numProcs);
+		// printf("displs: ");
+		// printarray(displs,numprocs);
+		// printf("sendcounts: ");
+		// printarray(sendcounts,numprocs);
+		// printf("vector_v: ");
+		// printarray(vector_v,numprocs);
 		printf("matriz_m: ");
-		printMatrix(matriz_m,numProcs);
+		printMatrix(matriz_m,n);
 	}
 	
 	MPI_Finalize();
@@ -160,13 +187,28 @@ void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 	int i=0,j=0;
 	 for(i = 0; i < n; i++)
 	 {
-		 vector_v[i] = randomNumber(5);//i; //random 0-5
+		 vector_v[i] = i;//randomNumber(5);//i; //random 0-5
 		 for(j = 0; j < n ; j++)
 		{
-			 matriz_m[i*n+j] = randomNumber(10);//j;//random 0-9;
+			 matriz_m[i*n+j] = j;//randomNumber(10);//j;//random 0-9;
 		 }
 	 }
 }
+
+void printNonSquareMatrix(int* array_n,int rows,int columns)
+{
+	int i=0,j=0;
+	fprintf(stdout,"Matriz NO CUADRADA %d x %d \n",rows,columns);
+	for(i = 0; i < rows; i++)
+	{
+		for(j = 0; j < columns ; j++)
+		{
+			fprintf(stdout,"%d ",array_n[i*columns+j]);
+		}
+		printf("\n");
+	}
+}
+
 
 void printMatrix(int* array_n,int n)
 {
