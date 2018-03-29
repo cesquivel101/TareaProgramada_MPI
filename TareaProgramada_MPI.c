@@ -12,6 +12,11 @@ int main(int argc,char **argv)
 	//Every subprocess uses this to do its calculations
 	int* sendcounts;
 	int* displs;
+	int* sub_matriz_m;
+	MPI_Status  status;        /* return status para receptor  */
+	int         tag = 0;       /* etiqueta para mensajes */
+	int numberOfIntsToAssignToSendCounts;
+	
 	
 	MPI_Init(&argc,&argv);
            
@@ -30,7 +35,9 @@ int main(int argc,char **argv)
 		matriz_m = (int *)malloc(nn * sizeof(int));
 		vector_v = (int *)malloc(sizeof(int)*n);
 		
-		int numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
+		numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
+		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
+		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
 		//This assigns the max amount of memory to the sub matrix of every process.
 		
 		//sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
@@ -45,7 +52,7 @@ int main(int argc,char **argv)
 			sendcounts[i] = numberOfIntsToAssignToSendCounts;
 			
 		}
-		
+		//MPI_Bcast(sendcounts, numProcs, MPI_INT,myid,MPI_COMM_WORLD);
 		// displs[0] = 0;
 		// displs[numProcs-1] = numProcs*(n/2+1);
 		
@@ -53,7 +60,7 @@ int main(int argc,char **argv)
 		
 		fillDispls(displs,n,numProcs);
 		
-		//ScatterV here...
+
 		 //MPI_Scatterv(x, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
 
 		 //MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
@@ -61,9 +68,13 @@ int main(int argc,char **argv)
 	}
 	else
 	{
-		//other processes receive the information
+		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
+		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
+		//fprintf(stdout,"HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
 	}
-	
+	//fprintf(stdout,"ANTES: HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
+			//ScatterV here...
+	MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
 	//Magic calculations...
 	
 	if(myid == 0)
@@ -73,7 +84,14 @@ int main(int argc,char **argv)
 		// printMatrix(matriz_m,n);
 		// printf("\n");
 		// printArray(vector_v,n);
+		printf("Displs: ");
 		printArray(displs,numProcs);
+		printf("sendcounts: ");
+		printArray(sendcounts,numProcs);
+		printf("vector_v: ");
+		printArray(vector_v,numProcs);
+		printf("matriz_m: ");
+		printMatrix(matriz_m,numProcs);
 	}
 	
 	MPI_Finalize();
