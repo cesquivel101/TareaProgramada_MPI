@@ -90,19 +90,19 @@ int scatterVFirstMiddle(int n, int numProcs)
 	return n*((n/numProcs)-1);
 }
 
-int scatterVNextMiddle(int n, int numProcs)
+int scatterVMiddleDisplacement(int n, int numProcs)
 {
 	return ((n*n)/numProcs);
 }
 
 int fillDispls(int * displs, int n, int numProcs)
 {
-	
 	int i;
 	displs[1] = scatterVFirstMiddle(n,numProcs);
+	int displacement = scatterVMiddleDisplacement(n,numProcs);
 	for(i = 2; i < numProcs-1;i++)
 	{
-		displs[i] = displs[i-1] + scatterVNextMiddle(n,numProcs);
+		displs[i] = displs[i-1] + displacement;
 	}
 	displs[0] = 0;
 	displs[numProcs-1] = scatterVLast(n,numProcs);
