@@ -9,16 +9,18 @@ int main(int argc,char **argv)
 	int n = 0, myid, numProcs, nn;
 	int* matriz_m;
 	int* vector_v;
-	//Every subprocess uses this to do its calculations
+	//arreglo de tamanio numProcs que contiene cuantos enteros a dar a cada proceso
 	int* sendcounts;
+	//arreglo de tamanio numProcs que contiene a partir de que entero repartir el sendcounts correspondiente
 	int* displs;
-	int* recvcounts;
-	int* recvdispls;
+	//la matriz con la que va a trabajar cada proceso
 	int* sub_matriz_m;
+	//Sub resultado de cada proceso para el calculo de B
 	int* sub_matriz_b;
-	MPI_Status  status;        /* return status para receptor  */
-	int         tag = 0;       /* etiqueta para mensajes */
+	int tag = 0;       /* etiqueta para mensajes */
+	//El numero de enteros a asignar a cada proceso.
 	int numberOfIntsToAssignToSendCounts;
+	//Cuantas filas tiene la submatriz m
 	int rows_sub_matriz_m;
 	int* b;
 	
@@ -33,7 +35,7 @@ int main(int argc,char **argv)
 
 	if (myid == 0)
 	{
-		//The seed to generate the random numbers
+		//Semilla para generar numeros aleatorios
 		srand((unsigned)time(NULL));
 		n = askForN(numProcs);
 		
@@ -53,32 +55,17 @@ int main(int argc,char **argv)
 
 		sendcounts = (int *)malloc(sizeof(int)*numProcs);
 		displs = (int *)malloc(sizeof(int)*numProcs);
-		recvcounts = (int *)malloc(sizeof(int)*numProcs);;
-		recvdispls = (int *)malloc(sizeof(int)*numProcs);;
 		
 		int i = 0;
 			
 		for(i = 0; i < numProcs;i++)
 		{
 			sendcounts[i] = numberOfIntsToAssignToSendCounts;
-			recvcounts[i] = numberOfIntsToAssignToSendCounts;
-			recvdispls[i] = i*((n*n)/numProcs);
 		}
-
-		//MPI_Bcast(sendcounts, numProcs, MPI_INT,myid,MPI_COMM_WORLD);
-		// displs[0] = 0;
-		// displs[numProcs-1] = numProcs*(n/2+1);
 		
 		fillMatrixAndVector(matriz_m,vector_v,n);
 		
 		fillDispls(displs,n,numProcs);
-		
-		printArray(recvdispls,numProcs);
-		printArray(recvcounts,numProcs);
-		//fprintf(stdout,"tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
-		 //MPI_Scatterv(x, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
-
-		 //MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT, local_x, 100, MPI_INT, 0, MPI_COMM_WORLD);
 		 
 	}
 	else
@@ -88,7 +75,6 @@ int main(int argc,char **argv)
 		MPI_Bcast(&n, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
 		rows_sub_matriz_m = (n/numProcs)+2;
-		//fprintf(stdout,"HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
 	}
 	if(myid == numProcs-1)
 	{
@@ -97,8 +83,6 @@ int main(int argc,char **argv)
 	
 	b = (int *)malloc(n*n * sizeof(int));
 	sub_matriz_b = (int *)malloc(rows_sub_matriz_m*n * sizeof(int));
-	//fprintf(stdout,"ANTES: HOla yo soy %d y tengo el valor %d \n",myid,numberOfIntsToAssignToSendCounts);
-			//ScatterV here...
 	MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
 	
 	calculateCross(sub_matriz_m,rows_sub_matriz_m,n,sub_matriz_b);
@@ -106,10 +90,6 @@ int main(int argc,char **argv)
 	if(myid != 0)
 	{
 		sub_matriz_b = &sub_matriz_b[n];
-	}
-	else
-	{
-		fprintf(stdout,"mjm cuantos es numberOfIntsToAssignToSendCounts %d\n",numberOfIntsToAssignToSendCounts);
 	}
 
 	MPI_Gather(sub_matriz_b, (n*n)/numProcs, MPI_INT, b, (n*n)/numProcs, MPI_INT, 0, MPI_COMM_WORLD);
@@ -123,6 +103,8 @@ int main(int argc,char **argv)
 	MPI_Finalize();
 }
 
+//Calcula que si al valor de entrada se le resta 1, el resultado es negativo.
+//Se usa para calcular las casillas a sumar calculando la matriz b
 int isSubtractionLessThanZero(int value)
 {
 	int result = 0;
@@ -133,6 +115,8 @@ int isSubtractionLessThanZero(int value)
 	return result;
 }
 
+//Calcula que si el valor de entrada 'value' se le suma 1, el resultado es igual a n o mayor
+//Se usa para calcular las casillas a sumar calculando la matriz b
 int isAdditionGreaterThanN(int value,int n)
 {
 	int result = 0;
@@ -143,11 +127,12 @@ int isAdditionGreaterThanN(int value,int n)
 	return result;
 }
 
-// in this case, columns is n
+//Calcula el valor de la sumatoria en cruz de una entrada en particular en la matriz m.
+//Cada proceso hace este calculo para una sub matriz m (en este caso array_n)
+//El resultado se guarda en la casilla correspondiente del parametro sub_matriz_b
 void calculateCross(int* array_n,int rows,int columns,int* sub_matriz_b)
 {
 	int i=0,j=0;
-	//fprintf(stdout,"Calculo de sub matriz b %d x %d \n",rows,columns);
 	for(i = 0; i < rows; i++)
 	{
 		for(j = 0; j < columns ; j++)
@@ -173,28 +158,32 @@ void calculateCross(int* array_n,int rows,int columns,int* sub_matriz_b)
 			{
 				sub_matriz_b[i*columns+j] += array_n[i*columns+(j+1)];
 			}
-			//fprintf(stdout,"%d ",array_n[i*columns+j]);
 		}
-		//printf("\n");
 	}
 }
 
+//EL numero de enteros a asignar a la ultima particion de la matriz m
 int scatterVLast(int n, int numProcs)
 {
 	return ((n*n)-(((n/numProcs)+1)*n));
 }
 
+//EL numero de enteros a asignar a la primera particion de los procesos 'medios' de la matriz m
 int scatterVFirstMiddle(int n, int numProcs)
 {
 
 	return n*((n/numProcs)-1);
 }
 
+//El numero de enteros a moverme a partir de la segunda particion de los procesos medios
 int scatterVMiddleDisplacement(int n, int numProcs)
 {
 	return ((n*n)/numProcs);
 }
 
+//Llena el arreglo displs que se usa en el scatterv
+//Este arreglo contiene a partir de que entero el scatterv tiene que repartir la cantidad de enteros que esta
+//en sendcounts
 int fillDispls(int * displs, int n, int numProcs)
 {
 	int i;
@@ -208,7 +197,7 @@ int fillDispls(int * displs, int n, int numProcs)
 	displs[numProcs-1] = scatterVLast(n,numProcs);
 }
 
-
+//Generador de numeros aleatorios de 0 a modNum
 int randomNumber(int modNum)
 {
 	int returnVal = 0;
@@ -217,6 +206,8 @@ int randomNumber(int modNum)
 	return returnVal;
 }
 
+// Procesa y pide hasta que este correcto, el numero filas y columnas de la matriz cuadrada de entrada m 
+// N tiene que ser multiplo del numero de procesos
 int askForN(int numProcs)
 {
 	int n = 0,tamanio_correcto = 0;
@@ -236,7 +227,9 @@ int askForN(int numProcs)
 	return n;	
 }
 
-
+//Llena la matriz m y el vector v con valores aleatorios.
+// M ==> entre 0 y 9
+// V ==> entre 0 y 5
 void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 {
 	int i=0,j=0;
@@ -250,6 +243,7 @@ void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 	 }
 }
 
+//Imprime en consola una matriz NO cuadrada
 void printNonSquareMatrix(int* array_n,int rows,int columns)
 {
 	int i=0,j=0;
@@ -264,7 +258,7 @@ void printNonSquareMatrix(int* array_n,int rows,int columns)
 	}
 }
 
-
+//Imprime en pantalla una matriz cuadrada
 void printMatrix(int* array_n,int n)
 {
 	int i=0,j=0;
@@ -278,7 +272,7 @@ void printMatrix(int* array_n,int n)
 		printf("\n");
 	}
 }
-
+//Imprime un arreglo
 void printArray(int* array_n,int n)
 {
 	int j=0;
