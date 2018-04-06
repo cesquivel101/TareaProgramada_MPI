@@ -23,14 +23,27 @@ int main(int argc,char **argv)
 	//Cuantas filas tiene la submatriz m
 	int rows_sub_matriz_m;
 	int* b;
-	
+	//vector que guardara multiplicación m*v
+	int* vector_q;
+	//vector que calculara cierta parte de M*V
+	int* sub_q;
+	//total de primos en M
+	int tp;
+	//vector con número de primos por columna
+	int* vector_p;
+	//matriz que tendra 1 donde habia un primo y 0 si no primo
+	int* primos;
+	//vector fila que tendra 1 donde habia un primo y 0 si no primo
+	int* primosFila;
+	//hora inicial y final
+	double startwtime, endwtime;
 	
 	
 	MPI_Init(&argc,&argv);
            
-    MPI_Comm_size(MPI_COMM_WORLD,&numProcs);
+	MPI_Comm_size(MPI_COMM_WORLD,&numProcs);
  
-    MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
 	
 
 	if (myid == 0)
@@ -39,10 +52,16 @@ int main(int argc,char **argv)
 		srand((unsigned)time(NULL));
 		n = askForN(numProcs);
 		
+		//* =) empieza a tomarse el tiempo
+		startwtime = MPI_Wtime();
+
 		nn = n*n;
 
 		matriz_m = (int *)malloc(nn * sizeof(int));
 		vector_v = (int *)malloc(sizeof(int)*n);
+
+		// * =)
+		primos = (int *)malloc(nn * sizeof(int));
 		
 		numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
 		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
@@ -66,17 +85,25 @@ int main(int argc,char **argv)
 		fillMatrixAndVector(matriz_m,vector_v,n);
 		
 		fillDispls(displs,n,numProcs);
-		 
+
+		// * =) Envia vector_v a todos los procesos
+		MPI_Bcast(vector_v, n, MPI_INT,myid,MPI_COMM_WORLD);		 
 	}
-	else
+
+	else	//Todos los procesos excepto el 0
 	{
 		//Este primer broadcast nos lo podriamos volar...
 		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		MPI_Bcast(&n, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
 		rows_sub_matriz_m = (n/numProcs)+2;
+
+		// * =) Recibe vector_v.   NO BORRAR ESTE
+		vector_v = (int *)malloc(sizeof(int)*n);
+		MPI_Bcast(vector_v, n, MPI_INT,0,MPI_COMM_WORLD);
 	}
-	if(myid == numProcs-1)
+
+	if(myid == numProcs-1) //último proceso
 	{
 		rows_sub_matriz_m = (n/numProcs)+1;
 	}
@@ -94,13 +121,159 @@ int main(int argc,char **argv)
 
 	MPI_Gather(sub_matriz_b, (n*n)/numProcs, MPI_INT, b, (n*n)/numProcs, MPI_INT, 0, MPI_COMM_WORLD);
 
+
+	// * =) Calcula q y primos por Filas
+	vector_q = (int *)malloc(sizeof(int)*n);
+	int numFilas = n/numProcs;
+	sub_q = (int *)calloc(numFilas,sizeof(int)); //numero de filas que le tocan (n/numProcs)
+
+	primosFila = (int *)calloc(numFilas*n,sizeof(int)); //numero de columnas
+	
+	if (vector_q != NULL && sub_q != NULL && primosFila != NULL)
+	{
+		if (myid == 0)
+		{
+			int i = 0;
+			for (i; i < numFilas; i++)
+			{
+				int j = 0;
+				for (j; j < n; j++)
+				{
+					sub_q[i] += sub_matriz_m[i*n + j] * vector_v[j];
+					if (sub_matriz_m[i*n + j] % 2 != 0)
+					{
+						if ( sub_matriz_m[i*n + j] != 9 )
+						{
+							primosFila[i*n + j] = 1;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			int i = 1;
+			for (i; i <= numFilas; i++)
+			{
+				int j = 0;
+				for (j; j < n; j++)
+				{
+					sub_q[i-1] += sub_matriz_m[i*n + j] * vector_v[j];
+					if (sub_matriz_m[i*n + j] % 2 != 0 && sub_matriz_m[i*n + j] != 9)
+					{
+						int temp = i-1;
+						primosFila[temp*n + j] = 1;
+					}
+				}
+			}
+		}
+		
+	}
+	//TERMINA * =) Calcula q y primos por Filas
+
+	// * =) proceso 0 recibe vector q y primos por Fila
+	MPI_Gather(sub_q, n/numProcs, MPI_INT, vector_q, n/numProcs, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Gather(primosFila, numFilas*n, MPI_INT, primos, numFilas*n, MPI_INT, 0, MPI_COMM_WORLD);
+
 	if(myid == 0)
 	{
-		printf("matriz b: ");
-		printMatrix(b,n);
+
+		// * =) Calcula tp = total de primos y vector_p = primos por columna
+		tp = 0;
+		vector_p = (int *)calloc(n, sizeof(int));
+		if (primos != NULL && vector_p != NULL)
+		{
+			int i = 0;
+			for (i; i < n; i++)
+			{
+				int j = 0;
+				for (j; j < n; j++)
+				{
+					if (primos[i*n + j] == 1)
+					{ 
+						tp++;
+						vector_p[j] += 1;
+					}
+				}
+			}
+		}
+
+		// * =) Despliegue Final de Datos
+		
+		//* =) termina de tomarse el tiempo
+		endwtime = MPI_Wtime();
+		// * =) Despliega en pantalla y/o archivo los resultados finales del programa
+		printf("\n *** RESULTADOS FINALES *** \n\nValor de n = %d\nCantidad de procesos que corrieron = %d\nTotal de primos en M (tp) = %d\n", n, numProcs, tp);
+
+		if(n < 100)
+		{
+			printf("\nMatriz M = ");
+			printMatrix(matriz_m, n, NULL);
+
+			printf("\nVector V = ");
+			printNonSquareMatrix(vector_v, 1, n, NULL);
+
+			printf("\nVector Q (Q = M*V) = ");
+			printNonSquareMatrix(vector_q, 1, n, NULL);
+
+			printf("\nVector P (primos por columna) = ");
+			printNonSquareMatrix(vector_p, 1, n, NULL);
+
+			printf("\nMatriz B = ");
+			printMatrix(b, n, NULL);
+
+			//printf("\nFIIIIIIIIIN ");
+			printf("\n  Duración del programa = %f\n", endwtime-startwtime);
+		}
+		else
+		{
+			FILE *salida;
+			salida = fopen ("Resultados Finales.txt", "w");
+			
+			if (salida != NULL)
+			{
+				fprintf(salida, "*** RESULTADOS FINALES ***\n\n\nMatriz M = ");
+				printMatrix(matriz_m, n, salida);
+
+				fprintf(salida, "\n\n\nVector V = ");
+				printNonSquareMatrix(vector_v, 1, n, salida);
+
+				fprintf(salida, "\n\n\nVector Q (Q = M*V) = ");
+				printNonSquareMatrix(vector_q, 1, n, salida);
+
+				fprintf(salida, "\n\n\nVector P (primos por columna) = ");
+				printNonSquareMatrix(vector_p, 1, n, salida);
+
+				fprintf(salida, "\n\n\nMatriz B = ");
+				printMatrix(b, n, salida);
+
+				fclose (salida);
+			}
+			else
+			{
+				printf("\nERROR: Ocurrió un error al abrir archivo.\n");
+			}
+		}
+
+
+		//Libera memoria que SOLO asigno proceso 0
+		free(b);
+		free(matriz_m);
+		free(vector_v);
+		free(sendcounts);
+		free(displs);
+		free(sub_matriz_b);
+		free(primos);
+		free(vector_p);
+		free(vector_q);
+		free(sub_q);
 	}
 	
 	MPI_Finalize();
+
+	//Libera memoria que asignaron TODOS los procesos y ya no se ocupa
+	free(sub_matriz_m);
+	free(primosFila);
 }
 
 //Calcula que si al valor de entrada se le resta 1, el resultado es negativo.
@@ -244,32 +417,65 @@ void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 }
 
 //Imprime en consola una matriz NO cuadrada
-void printNonSquareMatrix(int* array_n,int rows,int columns)
+void printNonSquareMatrix(int* array_n,int rows,int columns,FILE* salida)
 {
-	int i=0,j=0;
-	fprintf(stdout,"Matriz NO CUADRADA %d x %d \n",rows,columns);
-	for(i = 0; i < rows; i++)
+	if (salida == NULL)
 	{
-		for(j = 0; j < columns ; j++)
+		int i=0,j=0;
+		fprintf(stdout,"Matriz NO CUADRADA %d x %d \n",rows,columns);
+		for(i = 0; i < rows; i++)
 		{
-			fprintf(stdout,"%d ",array_n[i*columns+j]);
+			for(j = 0; j < columns ; j++)
+			{
+				fprintf(stdout,"%d ",array_n[i*columns+j]);
+			}
+			printf("\n");
 		}
-		printf("\n");
+	}
+	else
+	{
+		int i=0,j=0;
+		fprintf(salida,"Matriz NO CUADRADA %d x %d \n",rows,columns);
+		for(i = 0; i < rows; i++)
+		{
+			for(j = 0; j < columns ; j++)
+			{
+				fprintf(salida,"%d ",array_n[i*columns+j]);
+			}
+			fprintf(salida,"\n");
+		}
+
 	}
 }
 
 //Imprime en pantalla una matriz cuadrada
-void printMatrix(int* array_n,int n)
+void printMatrix(int* array_n,int n,FILE* salida)
 {
-	int i=0,j=0;
-	fprintf(stdout,"Matriz %d x %d \n",n,n);
-	for(i = 0; i < n; i++)
+	if (salida == NULL)
 	{
-		for(j = 0; j < n ; j++)
+		int i=0,j=0;
+		fprintf(stdout,"Matriz %d x %d \n",n,n);
+		for(i = 0; i < n; i++)
 		{
-			fprintf(stdout,"%d ",array_n[i*n+j]);
+			for(j = 0; j < n ; j++)
+			{
+				fprintf(stdout,"%d ",array_n[i*n+j]);
+			}
+			printf("\n");
 		}
-		printf("\n");
+	}
+	else
+	{
+		int i=0,j=0;
+		fprintf(salida,"Matriz %d x %d \n",n,n);
+		for(i = 0; i < n; i++)
+		{
+			for(j = 0; j < n ; j++)
+			{
+				fprintf(salida,"%d ",array_n[i*n+j]);
+			}
+			fprintf(salida,"\n");
+		}
 	}
 }
 //Imprime un arreglo
