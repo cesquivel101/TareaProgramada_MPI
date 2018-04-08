@@ -36,10 +36,14 @@ int main(int argc,char **argv)
 	//vector fila que tendra 1 donde habia un primo y 0 si no primo
 	int* primosFila;
 	//hora inicial y final
-	double startwtime, endwtime;
+	double inicioTotal, finTotal, inicioParcial, finParcial;
 	
 	
+
 	MPI_Init(&argc,&argv);
+
+	//* =) Empiezo a tomar el tiempo total
+	inicioTotal = MPI_Wtime();
            
 	MPI_Comm_size(MPI_COMM_WORLD,&numProcs);
  
@@ -53,7 +57,7 @@ int main(int argc,char **argv)
 		n = askForN(numProcs);
 		
 		//* =) empieza a tomarse el tiempo
-		startwtime = MPI_Wtime();
+		inicioParcial = MPI_Wtime();
 
 		nn = n*n;
 
@@ -201,7 +205,8 @@ int main(int argc,char **argv)
 		// * =) Despliegue Final de Datos
 		
 		//* =) termina de tomarse el tiempo
-		endwtime = MPI_Wtime();
+		finParcial = MPI_Wtime();
+
 		// * =) Despliega en pantalla y/o archivo los resultados finales del programa
 		printf("\n *** RESULTADOS FINALES *** \n\nValor de n = %d\nCantidad de procesos que corrieron = %d\nTotal de primos en M (tp) = %d\n", n, numProcs, tp);
 
@@ -223,7 +228,7 @@ int main(int argc,char **argv)
 			printMatrix(b, n, NULL);
 
 			//printf("\nFIIIIIIIIIN ");
-			printf("\n  Duración del programa = %f\n", endwtime-startwtime);
+			printf("\n  Duración del programa sin entrada o salida de datos = %f\n", finParcial-inicioParcial);
 		}
 		else
 		{
@@ -248,6 +253,8 @@ int main(int argc,char **argv)
 				printMatrix(b, n, salida);
 
 				fclose (salida);
+
+				printf("\n  Duración del programa sin entrada o salida de datos = %f\n", finParcial-inicioParcial);
 			}
 			else
 			{
@@ -267,6 +274,11 @@ int main(int argc,char **argv)
 		free(vector_p);
 		free(vector_q);
 		free(sub_q);
+
+		//* =) termina de tomarse el tiempo
+		finTotal = MPI_Wtime();
+
+		printf("\n\n Duración TOTAL del programa = %f\n\n", finTotal - inicioTotal);
 	}
 	
 	MPI_Finalize();
