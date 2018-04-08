@@ -4,6 +4,9 @@
 #include <math.h>
 #include <time.h>
 
+//Carlos Esquivel A62066
+//Daniela Quesada B25247
+
 int main(int argc,char **argv)
 {
 	int n = 0, myid, numProcs, nn;
@@ -70,8 +73,19 @@ int main(int argc,char **argv)
 		numberOfIntsToAssignToSendCounts = ((n/numProcs)+2)*n;
 		MPI_Bcast(&numberOfIntsToAssignToSendCounts, 1, MPI_INT,myid,MPI_COMM_WORLD);
 		MPI_Bcast(&n, 1, MPI_INT,myid,MPI_COMM_WORLD);
-		sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
-		rows_sub_matriz_m = (n/numProcs)+1;
+		
+		
+		
+		if(numProcs != 1)
+		{
+			sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSendCounts);
+			rows_sub_matriz_m = (n/numProcs)+1;
+		}
+		else
+		{
+			sub_matriz_m = (int *)malloc(sizeof(int)*nn);
+			rows_sub_matriz_m = n;
+		}
 		//This assigns the max amount of memory to the sub matrix of every process.
 		
 		//sub_matriz_m = (int *)malloc(sizeof(int)*numberOfIntsToAssignToSubMatrixM);
@@ -114,7 +128,18 @@ int main(int argc,char **argv)
 	
 	b = (int *)malloc(n*n * sizeof(int));
 	sub_matriz_b = (int *)malloc(rows_sub_matriz_m*n * sizeof(int));
-	MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
+	if(numProcs == 1)
+	{
+		int k;
+		for(k = 0;k < nn;k++)
+		{
+			sub_matriz_m[k] = matriz_m[k];
+		}
+	}
+	else
+	{
+		MPI_Scatterv(matriz_m, sendcounts, displs, MPI_INT,sub_matriz_m, numberOfIntsToAssignToSendCounts, MPI_INT,0, MPI_COMM_WORLD);
+	}
 	
 	calculateCross(sub_matriz_m,rows_sub_matriz_m,n,sub_matriz_b);
 	
@@ -124,7 +149,6 @@ int main(int argc,char **argv)
 	}
 
 	MPI_Gather(sub_matriz_b, (n*n)/numProcs, MPI_INT, b, (n*n)/numProcs, MPI_INT, 0, MPI_COMM_WORLD);
-
 
 	// * =) Calcula q y primos por Filas
 	vector_q = (int *)malloc(sizeof(int)*n);
@@ -420,10 +444,10 @@ void fillMatrixAndVector(int * matriz_m,int* vector_v,int n)
 	int i=0,j=0;
 	 for(i = 0; i < n; i++)
 	 {
-		 vector_v[i] = i+1;/*randomNumber(5);*//*i; *///random 0-5
+		 vector_v[i] = randomNumber(5);/*i; *///random 0-5
 		 for(j = 0; j < n ; j++)
 		{
-			 matriz_m[i*n+j] = j+1;/*randomNumber(10);*//*j;*///random 0-9;
+			 matriz_m[i*n+j] = randomNumber(10);/*j;*///random 0-9;
 		 }
 	 }
 }
